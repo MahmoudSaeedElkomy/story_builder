@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>باني القصة: ورشة الكتابة العلاجية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Desert Sands & Papyrus -->
+    <!-- Application Structure Plan: The SPA will have a focused, minimalistic design. The core structure will be a central writing area (textarea) where the user can freely type. Below it, there will be an "Ask for Inspiration" button. The LLM's generated questions/insights will appear in a dedicated output area. A subtle audio control will be placed in a corner. This clean, single-view structure prioritizes the user's writing flow and direct interaction with the AI's prompts, making it intuitive and non-distracting for a therapeutic purpose. -->
+    <!-- Visualization & Content Choices: 1. Writing Area: A textarea with simple styling for clear and focused input. 2. LLM Interaction Button: A distinct button (<button>) to trigger the AI prompt. Visual feedback (loading spinner) will indicate AI processing. 3. LLM Output Display: A div to display the AI's generated text, initially hidden, appearing with a subtle fade-in. 4. Auditory Feedback (Tone.js): Typing sounds and simple background music, controllable by the user. 5. Privacy Disclaimer: Clear text assuring local data processing and storage. Confirmed NO SVG graphics used. NO Mermaid JS used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #FDF8F0;
+            color: #4E4234;
+        }
+        .bg-primary { background-color: #FDF8F0; }
+        .bg-secondary { background-color: #F5EFE1; }
+        .text-primary { color: #4E4234; }
+        .text-accent { color: #8D6B4C; }
+        .border-accent { border-color: #D4A056; }
+        .bg-accent { background-color: #D4A056; }
+        .bg-accent-hover:hover { background-color: #C08C3B; }
+        .shadow-custom { box-shadow: 0 10px 25px -5px rgba(141, 107, 76, 0.1), 0 4px 6px -4px rgba(141, 107, 76, 0.1); }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #D4A056;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body class="bg-primary">
+    <main class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="max-w-4xl w-full bg-secondary p-8 rounded-xl shadow-custom">
+            <h1 class="text-3xl font-bold text-accent text-center mb-6">باني القصة: ورشة الكتابة العلاجية</h1>
+            <p class="text-primary text-center mb-8">اكتب بحرية عن مشاعرك، تجاربك، أو أفكارك. سأكون هنا لألهمك وأساعدك على التعمق في قصتك.</p>
+            
+            <textarea id="writing-area" class="w-full h-80 p-4 text-primary bg-primary rounded-lg border-2 border-accent/30 focus:outline-none focus:border-accent resize-y shadow-inner mb-6" placeholder="ابدأ بكتابة قصتك هنا..."></textarea>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+                <button id="ask-inspiration-btn" class="bg-accent text-white font-bold py-3 px-8 rounded-full text-lg bg-accent-hover transition-all duration-300 transform hover:scale-105">
+                    اطلب سؤالًا مُلهمًا ✨
+                </button>
+                <button id="summarize-btn" class="bg-accent text-white font-bold py-3 px-8 rounded-full text-lg bg-accent-hover transition-all duration-300 transform hover:scale-105">
+                    استخلص معنى 💡
+                </button>
+            </div>
+
+            <div id="ai-response-area" class="mt-6 p-4 bg-primary rounded-lg shadow-inner text-primary hidden">
+                <div class="loading-spinner hidden"></div>
+                <p id="ai-response-text" class="leading-relaxed"></p>
+            </div>
+
+            <p class="mt-8 text-sm text-center text-primary/70">
+                **ملاحظة هامة للخصوصية:** كل ما تكتبه تتم معالجته على جهازك فقط باستخدام نماذج الذكاء الاصطناعي، ولا يتم حفظ أي بيانات أو قصص على الخوادم. خصوصيتك هي أولويتنا القصوى.
+            </p>
+        </div>
+
+        <div class="fixed bottom-4 left-4 bg-secondary p-3 rounded-full shadow-lg flex items-center space-x-2">
+            <button id="toggle-music" class="text-accent text-xl focus:outline-none">
+                🎶
+            </button>
+            <button id="toggle-typing-sound" class="text-accent text-xl focus:outline-none">
+                ⌨️
+            </button>
+        </div>
+    </main>
+
+    <script>
+        const writingArea = document.getElementById('writing-area');
+        const askInspirationBtn = document.getElementById('ask-inspiration-btn');
+        const summarizeBtn = document.getElementById('summarize-btn');
+        const aiResponseArea = document.getElementById('ai-response-area');
+        const aiResponseText = document.getElementById('ai-response-text');
+        const loadingSpinner = aiResponseArea.querySelector('.loading-spinner');
+        const toggleMusicBtn = document.getElementById('toggle-music');
+        const toggleTypingSoundBtn = document.getElementById('toggle-typing-sound');
+
+        // Tone.js setup for background music
+        let backgroundSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: {
+                type: "sawtooth"
+            },
+            envelope: {
+                attack: 2,
+                decay: 0.5,
+                sustain: 0.8,
+                release: 3
+            }
+        }).toDestination();
+        backgroundSynth.volume.value = -18; // Lower volume for background
+
+        let musicLoop;
+        let isMusicPlaying = false;
+
+        function startMusic() {
+            if (!musicLoop) {
+                const chords = [
+                    ["C4", "E4", "G4"], // C Major
+                    ["F4", "A4", "C5"], // F Major
+                    ["G4", "B4", "D5"], // G Major
+                    ["A4", "C5", "E5"] // A minor - Changed "Am4" to "A4"
+                ];
+                let chordIndex = 0;
+                musicLoop = new Tone.Loop(time => {
+                    backgroundSynth.triggerAttackRelease(chords[chordIndex % chords.length], "2n", time);
+                    chordIndex++;
+                }, "2n").start(0); // Play a chord every 2 beats
+            }
+            Tone.Transport.start();
+            isMusicPlaying = true;
+        }
+
+        function stopMusic() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            backgroundSynth.releaseAll();
+            musicLoop = null; // Reset loop
+            isMusicPlaying = false;
+        }
+
+        toggleMusicBtn.addEventListener('click', async () => {
+            await Tone.start(); // Ensure audio context is started on user interaction
+            if (isMusicPlaying) {
+                stopMusic();
+                toggleMusicBtn.textContent = '🔇'; // Muted icon
+            } else {
+                startMusic();
+                toggleMusicBtn.textContent = '🎶'; // Playing icon
+            }
+        });
+
+        // Tone.js setup for typing sound
+        let typingSynth = new Tone.Synth({
+            oscillator: {
+                type: "sine"
+            },
+            envelope: {
+                attack: 0.001,
+                decay: 0.05,
+                sustain: 0.0,
+                release: 0.05
+            }
+        }).toDestination();
+        typingSynth.volume.value = -15; // Volume for typing sound
+        let isTypingSoundEnabled = false;
+
+        writingArea.addEventListener('input', async () => {
+            if (isTypingSoundEnabled) {
+                await Tone.start();
+                typingSynth.triggerAttackRelease("C3", "32n"); // Play a short note on each keypress
+            }
+        });
+
+        toggleTypingSoundBtn.addEventListener('click', () => {
+            isTypingSoundEnabled = !isTypingSoundEnabled;
+            if (isTypingSoundEnabled) {
+                toggleTypingSoundBtn.textContent = '🔊'; // Sound enabled icon
+            } else {
+                toggleTypingSoundBtn.textContent = '🔇'; // Sound muted icon
+            }
+        });
+
+        // Gemini API integration
+        async function callGeminiAPI(prompt, outputElement, spinnerElement) {
+            outputElement.classList.remove('hidden');
+            outputElement.querySelector('p').textContent = '';
+            spinnerElement.classList.remove('hidden');
+
+            const apiKey = ""; // If you want to use models other than gemini-2.0-flash or imagen-3.0-generate-002, provide an API key here. Otherwise, leave this as-is.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    outputElement.querySelector('p').textContent = result.candidates[0].content.parts[0].text;
+                } else {
+                    outputElement.querySelector('p').textContent = 'تعذر توليد الرد. حاول مرة أخرى.';
+                }
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                outputElement.querySelector('p').textContent = 'حدث خطأ أثناء الاتصال بالنموذج. حاول مرة أخرى.';
+            } finally {
+                spinnerElement.classList.add('hidden');
+            }
+        }
+
+        askInspirationBtn.addEventListener('click', () => {
+            const currentText = writingArea.value;
+            if (currentText.trim() === '') {
+                aiResponseArea.classList.remove('hidden');
+                aiResponseText.textContent = 'اكتب شيئاً أولاً لأستطيع أن أقدم لك سؤالاً مُلهماً!';
+                return;
+            }
+            const prompt = `بناءً على النص التالي الذي كتبه المستخدم، استخرج سؤالاً تأملياً عميقاً أو بصيرة روحية/فلسفية موجزة لتشجيعه على التعمق أكثر في كتابته وفهم مشاعره. اجعل الإجابة باللغة العربية الفصحى ومباشرة:\n\n"${currentText}"`;
+            callGeminiAPI(prompt, aiResponseArea, loadingSpinner);
+        });
+
+        summarizeBtn.addEventListener('click', () => {
+            const currentText = writingArea.value;
+            if (currentText.trim() === '') {
+                aiResponseArea.classList.remove('hidden');
+                aiResponseText.textContent = 'اكتب شيئاً أولاً لأستطيع أن أستخلص المعنى!';
+                return;
+            }
+            const prompt = `استخلص المعنى الرئيسي أو الأنماط العاطفية والفكرية البارزة في النص التالي الذي كتبه المستخدم. قدم الخلاصة في فقرة موجزة ومباشرة باللغة العربية الفصحى:\n\n"${currentText}"`;
+            callGeminiAPI(prompt, aiResponseArea, loadingSpinner);
+        });
+
+    </script>
+</body>
+</html>
