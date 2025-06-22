@@ -183,7 +183,7 @@
             outputElement.querySelector('p').textContent = '';
             spinnerElement.classList.remove('hidden');
 
-            const apiKey = "AIzaSyBt3W-fHQ-PPQBTPNlvKrC-XdVt_hz97QI"; // If you want to use models other than gemini-2.0-flash or imagen-3.0-generate-002, provide an API key here. Otherwise, leave this as-is.
+            const apiKey = "AIzaSyBt3W-fHQ-PPQBTPNlvKrC-XdVt_hz97QI"; 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
